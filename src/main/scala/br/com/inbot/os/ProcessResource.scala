@@ -2,6 +2,7 @@ package br.com.inbot.os
 
 import cats._
 import cats.effect._
+import cats.effect.syntax.all._
 import cats.syntax.all._
 import fs2.io.{readInputStream, writeOutputStream}
 import fs2.{Chunk, Pipe, Stream => FStream}
@@ -12,17 +13,24 @@ import java.io.{File, InputStream, OutputStream}
 
 object ProcessResource {
 
+    object exceptions {
+        sealed trait ProcessError extends Product
+        case class CancelledProcess(msg: String) extends ProcessError
+        case class ExceptionInProcess(msg: String, err: Throwable) extends ProcessError
+    }
+
     /**
      * Represents a created process with all the extra information
+     * @tparam F efeito que está sendo usado
+     * @tparam T tipo dos streams de dados (normalmente é byte)
      * @param proc Process do java
      * @param stdin Um pipe no qual se pode escrever para mandar dados para o processo criado
      * @param stdout Uma stream com a saída do processo
      * @param stderr Uma stream com a entrada do processo
      * @param sync$F$0 instância de Sync para o efeito que está sendo usado
      * @param async$F$1 instância de Async para o efeito que está sendo usado
-     * @tparam F efeito que está sendo usado
      */
-    case class FullProcess[F[_]: Sync: Async](proc: Process, stdin: Pipe[F, Byte, Nothing], stdout: FStream[F, Byte], stderr: FStream[F, Byte]) {
+    case class FullProcess[F[_]: Async, T](proc: Process, stdin: Pipe[F, T, Nothing], stdout: FStream[F, T], stderr: FStream[F, T]) {
         /**
          * Espera pelo final do processo
          * @return
@@ -36,6 +44,7 @@ object ProcessResource {
             Sync[F].blocking { proc.exitValue() }
                 .attempt
                 .map(_.isRight)
+
     }
 
     /**
@@ -81,7 +90,7 @@ object ProcessResource {
      * @tparam F Effect type (IO, Try, Task, etc)
      * @return Um Resource that when used will create the process providing a [[FullProcess]] instance
      */
-    def mkProcess[F[_]: Sync: Async](cmd: Seq[String], env: Map[String, String], dir: Option[File]): Resource[F, FullProcess[F]] = {
+    def mkProcess[F[_]: Async](cmd: Seq[String], env: Map[String, String], dir: Option[File]): Resource[F, FullProcess[F, Byte]] = {
         val acquireProc: F[Process] = Sync[F].blocking {
             val pb = new ProcessBuilder(cmd: _*)
             if (dir.isDefined)
@@ -98,11 +107,11 @@ object ProcessResource {
         val releaseProc = { proc: Process =>
             Sync[F].blocking {
                 proc.destroy()
-            } // *> Sync[F].blocking(println("Releasing Process"))
+            }
         }
         val procResource = Resource.make(acquireProc)(releaseProc)
 
-        val fullProcR: Resource[F, FullProcess[F]] = for {
+        val fullProcR: Resource[F, FullProcess[F, Byte]] = for {
             proc <- procResource
             stdinR <- Resource.make(Sync[F].blocking(proc.getOutputStream)){(os: OutputStream) =>
                 // Sync[F].delay(println("Closing stdin")) *>
@@ -124,7 +133,7 @@ object ProcessResource {
     }
 
     /**
-     * Safely executes an external process (this is the same as mkProcess)
+     * Safely executes an external process (this is the same as mkProcess, but works with UTF8 Strings)
      *
      * @see [[mkProcess]]
      *
@@ -134,11 +143,11 @@ object ProcessResource {
      * @tparam F effect being used
      * @return a resource containing a FullProcess instance which, when '''use'''d, will start a process, then reclaim its resources after done
      */
-    def apply[F[_]: Sync: Async](cmd: Seq[String], env: Map[String, String], dir: Option[File]): Resource[F, FullProcess[F]] =
-        mkProcess(cmd, env, dir)
+    def apply[F[_]: Async](cmd: Seq[String], env: Map[String, String], dir: Option[File]): Resource[F, FullProcess[F, String]] =
+        convertToString(mkProcess(cmd, env, dir))
 
     /**
-     * Simple version of [[mkProcess]] that takes only the cmdline parameters
+     * Simple version of [[apply]] that works with Strings and takes only the cmdline, not the environment or directory
      *
      * @see mkProcess
      *
@@ -146,7 +155,64 @@ object ProcessResource {
      * @tparam F effect
      * @return a resource containing a FullProcess instance which, when '''use''' will start a process, then reclaim its resources after done
      */
-    def apply[F[_]: Sync: Async](cmd: Seq[String]): Resource[F, FullProcess[F]] =
-        mkProcess(cmd, Map.empty, None)
+    def apply[F[_]: Async](cmd: Seq[String]): Resource[F, FullProcess[F, String]] =
+        convertToString(mkProcess(cmd, Map.empty, None))
+
+    /**
+     * Transforms a ProcessResource object that does I/O with Bytes into one that works with utf8 Strings
+     * @param resource the resource that works in bytes
+     * @tparam F effect that is to be used
+     * @return a converted Resource
+     */
+    def convertToString[F[_]: Async](resource: Resource[F, FullProcess[F, Byte]]): Resource[F, FullProcess[F, String]] = {
+        resource.map { proc =>
+            FullProcess[F, String](
+                proc.proc,
+                fs2.text.utf8.encode.andThen(proc.stdin),
+                proc.stdout.through(fs2.text.utf8.decode),
+                proc.stderr.through(fs2.text.utf8.decode)
+            )
+        }
+    }
+
+    case class SimpleRunResult(exitCode: Int, out: String, err: String)
+
+    /**
+     * Runs a command, giving it the given input. Collects the results
+     * @param cmdline the command to execute and its parameters
+     * @param input the text to give to the input
+     * @tparam F the effect
+     * @return a SimpleRunResult object
+     */
+    def simpleRun[F[_]: Sync: Async: Spawn](cmdline: Seq[String], input: String): F[Either[exceptions.ProcessError, SimpleRunResult]] = {
+        val procR = apply[F](cmdline)
+        procR.use { proc =>
+            for {
+                _ <- FStream.emit(input).covary[F].through (proc.stdin).compile.drain.attempt
+                outFiber <- proc.stdout.compile.string.start
+                errFiber <- proc.stderr.compile.string.start
+                procResult <- proc.waitFor
+                outOutcome <- outFiber.join
+                errOutcome <- errFiber.join
+                fullResult <- (outOutcome, errOutcome) match {
+                    case (Outcome.Succeeded(outF), Outcome.Succeeded(errF)) =>
+                        for {out <- outF; err <- errF} yield
+                            Right(SimpleRunResult(procResult.exitValue(), out, err))
+                    // I don't believe any of those cases will happen, but better safe than sorry
+                    case (Outcome.Canceled(), Outcome.Canceled()) =>
+                        Sync[F].pure(Left(exceptions.CancelledProcess("stdout and stderr cancelled")))
+                    case (Outcome.Canceled(), _) =>
+                        Sync[F].pure(Left(exceptions.CancelledProcess("stdout cancelled")))
+                    case (_, Outcome.Canceled()) =>
+                        Sync[F].pure(Left(exceptions.CancelledProcess("stderr cancelled")))
+                    case (Outcome.Errored(err), _) =>
+                        Sync[F].pure(Left(exceptions.ExceptionInProcess("stdout had exception", err)))
+                    case (_, Outcome.Errored(err)) =>
+                        Sync[F].pure(Left(exceptions.ExceptionInProcess("stderr had exception", err)))
+                }
+            } yield
+                fullResult
+        }
+    }
 
 }
