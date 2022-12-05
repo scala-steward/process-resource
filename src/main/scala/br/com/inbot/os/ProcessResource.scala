@@ -14,13 +14,13 @@ object ProcessResource {
 
     /**
      * Represents a created process with all the extra information
+     * @tparam F efeito que está sendo usado
      * @param proc Process do java
      * @param stdin Um pipe no qual se pode escrever para mandar dados para o processo criado
      * @param stdout Uma stream com a saída do processo
      * @param stderr Uma stream com a entrada do processo
      * @param sync$F$0 instância de Sync para o efeito que está sendo usado
      * @param async$F$1 instância de Async para o efeito que está sendo usado
-     * @tparam F efeito que está sendo usado
      */
     case class FullProcess[F[_]: Sync: Async](proc: Process, stdin: Pipe[F, Byte, Nothing], stdout: FStream[F, Byte], stderr: FStream[F, Byte]) {
         /**
