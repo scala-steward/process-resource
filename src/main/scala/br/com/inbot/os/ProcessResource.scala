@@ -1,13 +1,12 @@
 package br.com.inbot.os
 
-import cats._
 import cats.effect._
 import cats.effect.syntax.all._
 import cats.syntax.all._
 import fs2.io.{readInputStream, writeOutputStream}
-import fs2.{Chunk, Pipe, Stream => FStream}
+import fs2.{Pipe, Stream => FStream}
 
-import java.io.{File, InputStream, OutputStream}
+import java.io.{Closeable, File, InputStream, OutputStream}
 
 
 
@@ -21,18 +20,16 @@ object ProcessResource {
 
     /**
      * Represents a created process with all the extra information
-     * @tparam F efeito que está sendo usado
-     * @tparam T tipo dos streams de dados (normalmente é byte)
-     * @param proc Process do java
-     * @param stdin Um pipe no qual se pode escrever para mandar dados para o processo criado
-     * @param stdout Uma stream com a saída do processo
-     * @param stderr Uma stream com a entrada do processo
-     * @param sync$F$0 instância de Sync para o efeito que está sendo usado
-     * @param async$F$1 instância de Async para o efeito que está sendo usado
+     * @tparam F the effect to use
+     * @tparam T stream base type (usually Byte or Stream)
+     * @param proc java Process object
+     * @param stdin An FS2 Pipe one can write to and have the data be sent to the process
+     * @param stdout Stream with the process standard output
+     * @param stderr Stream with the process error output
      */
     case class FullProcess[F[_]: Async, T](proc: Process, stdin: Pipe[F, T, Nothing], stdout: FStream[F, T], stderr: FStream[F, T]) {
         /**
-         * Espera pelo final do processo
+         * Waits for the process end
          * @return
          */
         def waitFor: F[Process] = {
@@ -56,9 +53,9 @@ object ProcessResource {
      * (in the case of stdin). After the "use" ends,
      *
      *
-     * Notice that reading and writing should be done in different fibers, então é bom tomar cuidado
+     * Notice that reading and writing should be done in different fibers as they may block
      *
-     * Exemplo:
+     * Example:
      * {{{
      *     val processResource: Resource[IO, ProcessResource.FullProcess[IO]] =
      *         mkProcess[IO](Seq("curl", uri), Map.empty, None)
@@ -84,7 +81,7 @@ object ProcessResource {
      *
      * }}}
      *
-     * @param cmd Command line to exemplo
+     * @param cmd Command line to execute
      * @param env Environment variables
      * @param dir Work directory
      * @tparam F Effect type (IO, Try, Task, etc)
@@ -111,24 +108,30 @@ object ProcessResource {
         }
         val procResource = Resource.make(acquireProc)(releaseProc)
 
+        def makeOutputResource(is: InputStream): Resource[F, FStream[F, Byte]] = {
+            Resource.make(Sync[F].blocking(readInputStream(Sync[F].delay(is), 10240, closeAfterUse = true)))(_ => Sync[F].unit) // delay(println("Closing stdout source"))
+        }
+
+        def closeStream(cl: Closeable): F[Unit] = Sync[F].blocking(cl.close()).attempt.as(())
+
         val fullProcR: Resource[F, FullProcess[F, Byte]] = for {
             proc <- procResource
             stdinR <- Resource.make(Sync[F].blocking(proc.getOutputStream)){(os: OutputStream) =>
                 // Sync[F].delay(println("Closing stdin")) *>
-                Sync[F].blocking(os.close()).attempt.as(()) // captura erro
+                closeStream(os)
             }
-            stdinSink <- Resource.make(Sync[F].blocking(writeOutputStream(Sync[F].delay(stdinR), true)))(_ => Sync[F].unit) // Sync[F].delay(println("Closing stdin sink")))
-            stdoutR <- Resource.make(Sync[F].blocking(proc.getInputStream)){(is: InputStream) =>
+            stdinSink <- Resource.make(Sync[F].blocking(writeOutputStream(Sync[F].delay(stdinR), closeAfterUse = true)))(_ => Sync[F].unit) // Sync[F].delay(println("Closing stdin sink")))
+            stdout <- Resource.make(Sync[F].blocking(proc.getInputStream)){(is: InputStream) =>
                 // Sync[F].delay(println("Closing stdout")) *>
-                Sync[F].blocking(is.close()).attempt.as(()) // captura erro em caso de problemas na hora de fechar o arquivo
+                closeStream(is)
             }
-            stdoutSource: FStream[F, Byte] <- Resource.make(Sync[F].blocking(readInputStream(Sync[F].delay(stdoutR), 10240, true)))(_ => Sync[F].unit) // delay(println("Closing stdout source")))
-            stderrR <- Resource.make(Sync[F].blocking(proc.getErrorStream)){(is: InputStream) =>
+            stdoutSource: FStream[F, Byte] <- makeOutputResource(stdout)
+            stderr <- Resource.make(Sync[F].blocking(proc.getErrorStream)){(is: InputStream) =>
                 // Sync[F].delay(println("closing stderr")) *>
-                Sync[F].blocking(is.close()).attempt.as(()) // captura erro
+                closeStream(is)
             }
-            stderrSource <- Resource.make(Sync[F].blocking(readInputStream(Sync[F].delay(stderrR), 10240, true)))(_ => Sync[F].unit) // Sync[F].delay(println("Closing stderr source")))
-        } yield (FullProcess(proc, stdinSink, stdoutSource, stderrSource))
+            stderrSource <- makeOutputResource(stderr)
+        } yield FullProcess(proc, stdinSink, stdoutSource, stderrSource)
         fullProcR
     }
 
