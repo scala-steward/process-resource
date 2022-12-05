@@ -40,7 +40,22 @@ stdin is a Pipe[F, String] and it's possible to send data from a Stream to it us
 While inside the "use" block, it's possible to read and write under the context of the given effect. 
 For that reason, processing is usually done inside of a for block.
 
+```scala
 
+        val procR: Resource[IO, ProcessResource.FullProcess[IO, String]] = ProcessResource[IO](Seq("/bin/cat"))
+        val program = procR.use { proc: ProcessResource.FullProcess[IO, String] =>
+            val stdinStream: FStream[IO, Byte] =
+                FStream.constant(".\n").take(100).through(proc.stdin)
+            for {
+                output: String <- proc.stdout.compile.string
+                terminated <- proc.isTerminated
+            } yield {
+                assertEquals(output.length, 200)
+                assert(terminated)
+            }
+
+        }
+```
 
 
 

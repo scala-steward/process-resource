@@ -41,7 +41,7 @@ class ProcessResourceSuite extends CatsEffectSuite {
         val procR: Resource[IO, ProcessResource.FullProcess[IO, String]] = ProcessResource[IO](Seq("/bin/cat"))
         val program = procR.use { proc: ProcessResource.FullProcess[IO, String] =>
             val stdinStream: FStream[IO, Byte] =
-                FStream.range(0, 100).map(_ => ".\n")
+                FStream.constant(".\n").take(100)
                     .through(proc.stdin)
             for {
                 output: String <- proc.stdout.compile.string
@@ -50,9 +50,7 @@ class ProcessResourceSuite extends CatsEffectSuite {
                 assertEquals(output.length, 200)
                 assert(terminated)
             }
-
         }
-
     }
     test("mkProcess stops input before reading everything") {
         val procR: Resource[IO, ProcessResource.FullProcess[IO, Byte]] = mkProcess[IO](Seq("/bin/cat"), Map.empty, None)
