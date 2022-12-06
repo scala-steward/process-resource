@@ -22,7 +22,7 @@ lazy val root = (project in file("."))
         "co.fs2" %% "fs2-io" % "3.4.0",
         "org.typelevel" %% "cats-effect" % "3.3.14",
         "org.typelevel" %% "cats-effect-kernel" % "3.3.14",
-        "org.typelevel" %% "cats-effect-testing-specs2" % "1.4.0" % Test,
+        "org.typelevel" %% "cats-effect-testing-specs2" % "1.5.0" % Test,
         "org.typelevel" %% "munit-cats-effect-3" % "1.0.7" % Test,
         "org.typelevel" %% "scalacheck-effect-munit" % scalacheckEffectVersion % Test,
         compilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
