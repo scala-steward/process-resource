@@ -4,6 +4,15 @@ Runs external command in a safe and (relatively) simple way.
 
 It makes a good effort to treat execution errors, and not to leak process handles and file descriptors.
 
+## Using
+
+```scala
+resolvers += "Artifactory" at "https://inbot.jfrog.io/artifactory/inbot-sbt-release/"
+
+libraryDependencies += ( "br.com.inbot" %% "process-resource" % "0.1.0" )
+
+```
+
 ## simpleRun
 The simplest way to run is to use the [simpleRun] command either as 
 ```scala
@@ -56,8 +65,6 @@ For that reason, processing is usually done inside of a for block.
 
         }
 ```
-
-
 
 
 
