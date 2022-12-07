@@ -8,8 +8,10 @@ val scalacheckEffectVersion = "1.0.4"
 
 DefaultOptions.addCredentials
 
-resolvers += ("Inbot" at "http://archiva.insite.com.br:8080/repository/internal").withAllowInsecureProtocol(true)
-publishTo := Some(("Inbot" at "http://archiva.insite.com.br:8080/repository/internal").withAllowInsecureProtocol(true))
+resolvers += "Artifactory" at "https://inbot.jfrog.io/artifactory/inbot-sbt-release/"
+publishTo := Some("Artifactory Realm" at "https://inbot.jfrog.io/artifactory/inbot-sbt-release")
+
+
 Compile / doc / scalacOptions ++= Seq("-groups", "-implicits")
 
 lazy val root = (project in file("."))
@@ -27,5 +29,4 @@ lazy val root = (project in file("."))
         "org.typelevel" %% "scalacheck-effect-munit" % scalacheckEffectVersion % Test,
         compilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
     ),
-    // testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
