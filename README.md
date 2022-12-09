@@ -9,7 +9,7 @@ It makes a good effort to treat execution errors, and not to leak process handle
 ```scala
 resolvers += "Artifactory" at "https://inbot.jfrog.io/artifactory/inbot-sbt-release/"
 
-libraryDependencies += ( "br.com.inbot" %% "process-resource" % "0.1.1" )
+libraryDependencies += ( "br.com.inbot" %% "process-resource" % "0.1.2" )
 
 ```
 
