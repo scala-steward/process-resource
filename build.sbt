@@ -26,7 +26,13 @@ lazy val root = (project in file("."))
         "org.typelevel" %% "cats-effect-kernel" % "3.3.14",
         "org.typelevel" %% "cats-effect-testing-specs2" % "1.5.0" % Test,
         "org.typelevel" %% "munit-cats-effect-3" % "1.0.7" % Test,
-        "org.typelevel" %% "scalacheck-effect-munit" % scalacheckEffectVersion % Test,
-        compilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
+        "org.typelevel" %% "scalacheck-effect-munit" % scalacheckEffectVersion % Test
     ),
+    libraryDependencies ++= {
+        CrossVersion.partialVersion(scalaVersion.value) match {
+            case Some((2, n)) if n <= 12 =>
+                List(compilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"))
+            case _                       => Nil
+      }
+    }
   )
