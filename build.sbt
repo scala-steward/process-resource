@@ -1,5 +1,5 @@
 ThisBuild / scalaVersion     := "2.13.10"
-ThisBuild / version          := "0.1.1"
+ThisBuild / version          := "0.1.2"
 ThisBuild / organization     := "br.com.inbot"
 ThisBuild / organizationName := "Inbot"
 ThisBuild / versionScheme := Some("early-semver")
@@ -14,10 +14,16 @@ publishTo := Some("Artifactory Realm" at "https://inbot.jfrog.io/artifactory/inb
 
 Compile / doc / scalacOptions ++= Seq("-groups", "-implicits")
 
+Compile / doc / scalacOptions ++= { CrossVersion.partialVersion(scalaVersion.value) match {
+            case Some((2, n)) => Nil
+            case _ => List("-source:future", "-rewrite", "-source", "3.0-migration")
+        }
+    }
+
 lazy val root = (project in file("."))
   .settings(
     name := "process-resource",
-    crossScalaVersions := Seq("2.13.10", "2.12.17"),
+    crossScalaVersions := Seq("2.13.10", "2.12.17", "3.2.1"),
     autoAPIMappings := true,
     libraryDependencies ++= Seq(
       "co.fs2" %% "fs2-core" % "3.4.0",

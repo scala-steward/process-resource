@@ -29,7 +29,7 @@ class ProcessResourceSuite extends CatsEffectSuite {
                 .through(proc.stdin)
             for {
                 _ <- stdinStream.compile.drain
-                output: String <- proc.stdout.through(fs2.text.utf8.decode).compile.toList.map(_.mkString)
+                output <- proc.stdout.through(fs2.text.utf8.decode).compile.toList.map(_.mkString)
                 // _ <- IO.println(s"length is ${output.length}")
             } yield
                 assertEquals(output.length, 200)
@@ -39,12 +39,12 @@ class ProcessResourceSuite extends CatsEffectSuite {
 
     test("apply runs cat") {
         val procR: Resource[IO, ProcessResource.FullProcess[IO, String]] = ProcessResource[IO](Seq("/bin/cat"))
-        val program = procR.use { proc: ProcessResource.FullProcess[IO, String] =>
+        val program = procR.use { (proc: ProcessResource.FullProcess[IO, String]) =>
             val stdinStream: FStream[IO, Byte] =
                 FStream.constant(".\n").take(100)
                     .through(proc.stdin)
             for {
-                output: String <- proc.stdout.compile.string
+                output <- proc.stdout.compile.string
                 terminated <- proc.isTerminated
             } yield {
                 assertEquals(output.length, 200)
@@ -60,7 +60,7 @@ class ProcessResourceSuite extends CatsEffectSuite {
                 .through(proc.stdin)
             for {
                 _ <- stdinStream.compile.drain
-                output: String <- IO.sleep(1.second) *> proc.stdout.through(fs2.text.utf8.decode).compile.toList.map(_.mkString)
+                output <- IO.sleep(1.second) *> proc.stdout.through(fs2.text.utf8.decode).compile.toList.map(_.mkString)
             } yield
                 assertEquals(output.length, 200)
         }
@@ -76,7 +76,7 @@ class ProcessResourceSuite extends CatsEffectSuite {
                 .through(proc.stdin)
             for {
                 _ <- stdinStream.compile.drain.attempt.start
-                output: Either[Throwable, String] <- proc.stdout.through(fs2.text.utf8.decode).evalTap(IO.println).compile.toList.map(_.mkString).attempt
+                output <- proc.stdout.through(fs2.text.utf8.decode).evalTap(IO.println).compile.toList.map(_.mkString).attempt
                 outProc <- proc.waitFor
             } yield
                 assertEquals(proc.proc.exitValue(),2)
@@ -107,9 +107,9 @@ class ProcessResourceSuite extends CatsEffectSuite {
             ProcessResource[IO](Seq("/bin/bash", "-c", "pwd"), Map.empty[String, String], Some(new File("/")))
         val program = procR.use { proc =>
             for {
-                outFiber: FiberIO[Either[Throwable, String]] <- proc.stdout.compile.toList.map(_.mkString).attempt.start
+                outFiber <- proc.stdout.compile.toList.map(_.mkString).attempt.start
                 result <- proc.waitFor
-                out: Outcome[IO, Throwable, Either[Throwable, String]] <- outFiber.join
+                out <- outFiber.join
             } yield {
                 assert(out.isSuccess)
                 assertEquals(result.exitValue(), 0)
@@ -130,9 +130,9 @@ class ProcessResourceSuite extends CatsEffectSuite {
             ProcessResource[IO](Seq("/bin/bash", "-c", """echo $TESTVAR"""), Map("TESTVAR" -> "TESTVALUE"), None)
         val program = procR.use { proc =>
             for {
-                outFiber: FiberIO[Either[Throwable, String]] <- proc.stdout.compile.toList.map(_.mkString).attempt.start
+                outFiber <- proc.stdout.compile.toList.map(_.mkString).attempt.start
                 result <- proc.waitFor
-                out: Outcome[IO, Throwable, Either[Throwable, String]] <- outFiber.join
+                out <- outFiber.join
             } yield {
                 assert(out.isSuccess)
                 assertEquals(result.exitValue(), 0)

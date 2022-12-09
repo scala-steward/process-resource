@@ -101,7 +101,7 @@ object ProcessResource {
             val proc: Process = pb.start()
             proc
         }
-        val releaseProc = { proc: Process =>
+        val releaseProc = { (proc: Process) =>
             Sync[F].blocking {
                 proc.destroy()
             }
@@ -125,7 +125,7 @@ object ProcessResource {
                 // Sync[F].delay(println("Closing stdout")) *>
                 closeStream(is)
             }
-            stdoutSource: FStream[F, Byte] <- makeOutputResource(stdout)
+            stdoutSource <- makeOutputResource(stdout)
             stderr <- Resource.make(Sync[F].blocking(proc.getErrorStream)){(is: InputStream) =>
                 // Sync[F].delay(println("closing stderr")) *>
                 closeStream(is)
