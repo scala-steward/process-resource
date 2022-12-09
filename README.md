@@ -1,5 +1,7 @@
 # process-resource
 
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/andreum/process-resource)
+
 Runs external command in a safe and (relatively) simple way.
 
 It makes a good effort to treat execution errors, and not to leak process handles and file descriptors.
