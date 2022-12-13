@@ -1,4 +1,3 @@
-package br.com.inbot.gol
 
 import br.com.inbot.os.ProcessResource
 import br.com.inbot.os.ProcessResource.mkProcess
@@ -52,6 +51,7 @@ class ProcessResourceSuite extends CatsEffectSuite {
                 FStream.constant(".\n").take(100)
                     .through(proc.stdin)
             for {
+                _ <- stdinStream.compile.drain
                 output <- proc.stdout.compile.string
                 terminated <- proc.isTerminated
             } yield {
@@ -59,6 +59,7 @@ class ProcessResourceSuite extends CatsEffectSuite {
                 assert(terminated)
             }
         }
+        program
     }
     test("mkProcess stops input before reading everything") {
         val procR: Resource[IO, ProcessResource.FullProcess[IO, Byte]] = mkProcess[IO](Seq("/bin/cat"), Map.empty, None)
@@ -84,10 +85,11 @@ class ProcessResourceSuite extends CatsEffectSuite {
                 .through(proc.stdin)
             for {
                 _ <- stdinStream.compile.drain.attempt.start
-                output <- proc.stdout.through(fs2.text.utf8.decode).evalTap(IO.println).compile.toList.map(_.mkString).attempt
-                outProc <- proc.waitFor
-            } yield
+                _ <- proc.stdout.through(fs2.text.utf8.decode).evalTap(IO.println).compile.toList.map(_.mkString).attempt
+                _ <- proc.waitFor
+            } yield {
                 assertEquals(proc.proc.exitValue(),2)
+            }
         }
         program
     }
@@ -96,7 +98,7 @@ class ProcessResourceSuite extends CatsEffectSuite {
         val program: IO[Unit] = procR.use { proc =>
             for {
                 output <- proc.stdout.compile.toList.map(_.mkString).attempt
-                result <- proc.waitFor
+                _ <- proc.waitFor
             } yield {
                 assert(output.isRight)
             }
@@ -131,35 +133,37 @@ class ProcessResourceSuite extends CatsEffectSuite {
                 )
             }
         }
+        program
     }
 
     test("can set environment variables") {
         val procR: Resource[IO, ProcessResource.FullProcess[IO, String]] =
             ProcessResource[IO](Seq("/bin/bash", "-c", """echo $TESTVAR"""), Map("TESTVAR" -> "TESTVALUE"), None)
-        val program = procR.use { proc =>
+        val program: IO[Unit] = procR.use { proc =>
             for {
                 outFiber <- proc.stdout.compile.toList.map(_.mkString).attempt.start
                 result <- proc.waitFor
                 out <- outFiber.join
-            } yield {
-                assert(out.isSuccess)
-                assertEquals(result.exitValue(), 0)
-                out.fold(
+                _ <- out.fold(
                     fail("output cancelled"),
                     err => fail(s"error:${err}"),
                     i_e_pwd => i_e_pwd map { e_pwd =>
                         assert(e_pwd.isRight)
-                        assertEquals(e_pwd.getOrElse("FAIL"), "TESTVALUE")
+                        assertEquals(e_pwd.getOrElse("FAIL"), "TESTVALUE\n")
                     }
                 )
+            } yield {
+                assert(out.isSuccess)
+                assertEquals(result.exitValue(), 0)
             }
         }
+        program
     }
 
     test("simpleRun can read and write output") {
         val txt = "line 1\nline 2"
         for {
-            runResult <- ProcessResource.simpleRun[IO](Seq("cat"), (txt))
+            runResult <- ProcessResource.simpleRun[IO](Seq("cat"), txt)
         } yield {
             runResult match {
                 case Right(result) =>
@@ -175,7 +179,7 @@ class ProcessResourceSuite extends CatsEffectSuite {
     test("simpleRun reports exitcode != 0") {
         val txt = "line 1\nline 2"
         for {
-            runResult <- ProcessResource.simpleRun[IO](Seq("/bin/bash", "-c", "echo 1; exit 2"), (txt))
+            runResult <- ProcessResource.simpleRun[IO](Seq("/bin/bash", "-c", "echo 1; exit 2"), txt)
         } yield {
             runResult match {
                 case Right(result) =>
