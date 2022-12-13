@@ -120,17 +120,17 @@ class ProcessResourceSuite extends CatsEffectSuite {
                 outFiber <- proc.stdout.compile.toList.map(_.mkString).attempt.start
                 result <- proc.waitFor
                 out <- outFiber.join
-            } yield {
-                assert(out.isSuccess)
-                assertEquals(result.exitValue(), 0)
-                out.fold(
+                _ <- out.fold(
                     fail("output canceled"),
                     err => fail(s"error:${err}"),
                     i_e_pwd => i_e_pwd map { e_pwd =>
                         assert(e_pwd.isRight)
-                        assertEquals(e_pwd.getOrElse("FAIL"), "/")
+                        assertEquals(e_pwd.getOrElse("FAIL").trim, "/")
                     }
                 )
+            } yield {
+                assert(out.isSuccess)
+                assertEquals(result.exitValue(), 0)
             }
         }
         program
