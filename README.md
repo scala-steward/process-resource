@@ -65,7 +65,7 @@ For that reason, processing is usually done inside of a for block.
                 assert(terminated)
             }
 
-        }
+        }.attempt
 ```
 
 

@@ -2,8 +2,7 @@ package br.com.inbot.gol
 
 import br.com.inbot.os.ProcessResource
 import br.com.inbot.os.ProcessResource.mkProcess
-import cats.effect.kernel.Outcome
-import cats.effect.{FiberIO, IO, Resource}
+import cats.effect.{IO, Resource}
 import fs2.{Stream => FStream}
 import munit.CatsEffectSuite
 
@@ -37,6 +36,15 @@ class ProcessResourceSuite extends CatsEffectSuite {
         program
     }
 
+    test("Flag error when cmd does not exist") {
+        val procR: Resource[IO, ProcessResource.FullProcess[IO, String]] = ProcessResource[IO](Seq("/non/existent"))
+        procR.use { proc =>
+            proc.waitFor
+        }.attempt map { p =>
+            assert(p.isLeft)
+        }
+
+    }
     test("apply runs cat") {
         val procR: Resource[IO, ProcessResource.FullProcess[IO, String]] = ProcessResource[IO](Seq("/bin/cat"))
         val program = procR.use { (proc: ProcessResource.FullProcess[IO, String]) =>
