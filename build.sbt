@@ -23,7 +23,7 @@ Compile / doc / scalacOptions ++= { CrossVersion.partialVersion(scalaVersion.val
 lazy val root = (project in file("."))
   .settings(
     name := "process-resource",
-    crossScalaVersions := Seq("2.13.10", "2.12.17", "3.2.1"),
+    crossScalaVersions := Seq("2.13.10", "2.12.17", "3.2.2"),
     autoAPIMappings := true,
     libraryDependencies ++= Seq(
       "co.fs2" %% "fs2-core" % "3.4.0",
