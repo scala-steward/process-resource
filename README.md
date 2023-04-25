@@ -6,6 +6,9 @@ Runs external command in a safe and (relatively) simple way.
 
 It makes a good effort to treat execution errors, and not to leak process handles and file descriptors.
 
+I found out that I'm actually just reinventing [fs2-process](https://github.com/fmonniot/fs2-process). Never mind, it's a good exercise anyway.
+
+
 ## Using
 
 ```scala
