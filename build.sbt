@@ -26,8 +26,8 @@ lazy val root = (project in file("."))
     crossScalaVersions := Seq("2.13.10", "2.12.17", "3.2.1"),
     autoAPIMappings := true,
     libraryDependencies ++= Seq(
-        "org.typelevel" %% "cats-effect" % "3.4.8",
-        "org.typelevel" %% "cats-effect-kernel" % "3.4.8",
+        "org.typelevel" %% "cats-effect" % "3.4.11",
+        "org.typelevel" %% "cats-effect-kernel" % "3.4.11",
       "co.fs2" %% "fs2-core" % "3.6.1",
         "co.fs2" %% "fs2-io" % "3.6.1",
         "org.typelevel" %% "cats-effect-testing-specs2" % "1.5.0" % Test,
