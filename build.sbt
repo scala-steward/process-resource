@@ -28,8 +28,8 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
         "org.typelevel" %% "cats-effect" % "3.4.8",
         "org.typelevel" %% "cats-effect-kernel" % "3.4.8",
-      "co.fs2" %% "fs2-core" % "3.6.1",
-        "co.fs2" %% "fs2-io" % "3.6.1",
+      "co.fs2" %% "fs2-core" % "3.11.0",
+        "co.fs2" %% "fs2-io" % "3.11.0",
         "org.typelevel" %% "cats-effect-testing-specs2" % "1.5.0" % Test,
         "org.typelevel" %% "munit-cats-effect-3" % "1.0.7" % Test,
         "org.typelevel" %% "scalacheck-effect-munit" % scalacheckEffectVersion % Test
