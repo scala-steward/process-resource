@@ -23,7 +23,7 @@ Compile / doc / scalacOptions ++= { CrossVersion.partialVersion(scalaVersion.val
 lazy val root = (project in file("."))
   .settings(
     name := "process-resource",
-    crossScalaVersions := Seq("2.13.10", "2.12.17", "3.2.1"),
+    crossScalaVersions := Seq("2.13.10", "2.12.20", "3.2.1"),
     autoAPIMappings := true,
     libraryDependencies ++= Seq(
         "org.typelevel" %% "cats-effect" % "3.4.8",
